@@ -1,0 +1,18 @@
+<html>
+    <head><title>Blinds</title>
+        <script>
+            function xhr(url) {
+                fetch(url).then(result => console.log(result)).catch(err => console.error(err));
+            }
+        </script>
+    </head>
+    <body>
+        <button onmousedown="xhr('up')" onmouseup="xhr('stop');">Up</button>
+        <button onmousedown="xhr('down')" onmouseup="xhr('stop')">Down</button>
+        <hr/>
+        <button onclick="xhr('set_up_pos')" onmouseup="stop()">Reset Up position</button>
+        <button onmousedown="xhr('set_down_pos')" onmouseup="stop()">Reset Down position</button>
+        <hr/>
+        <input type="range" onchange="xhr('set_target_position?pos=' + this.value)" min="0" max="100" />
+    </body>
+</html>
