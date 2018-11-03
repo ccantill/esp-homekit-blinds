@@ -40,17 +40,23 @@ void WindowCover_setStateInternal(window_cover_t* instance, window_state_t newSt
     instance->state = newState;
     gpio_write(instance->upPin, newState == DECREASING);
     gpio_write(instance->downPin, newState == INCREASING);
+    if(instance->callback != NULL) {
+        instance->callback(STATE_CHANGED);
+    }
 }
 
 void WindowCover_update(window_cover_t* instance) {
-    bool newSenseState = gpio_read(instance->sensePin);
     if(instance->state != STOPPED) {   
+        bool newSenseState = gpio_read(instance->sensePin);
         if(newSenseState != instance->lastSenseState) {
             instance->lastSenseState = newSenseState;
             if(instance->state == DECREASING) {
                 instance->currentPosition--;
             } else if(instance->state == INCREASING) {
                 instance->currentPosition++;
+            }
+            if(instance->callback != NULL) {
+                instance->callback(CURRENT_POSITION_CHANGED);
             }
             printf("Current position now at %d\n", instance->currentPosition);
         }
@@ -65,6 +71,9 @@ void WindowCover_update(window_cover_t* instance) {
 
 void WindowCover_setTargetPosition(window_cover_t* instance, int position) {
     instance->targetPosition = position;
+    if(instance->callback != NULL) {
+        instance->callback(TARGET_POSITION_CHANGED);
+    }
     if(position > instance->currentPosition) {
         WindowCover_setStateInternal(instance, INCREASING);
     } else if(position < instance->currentPosition) {
@@ -78,12 +87,18 @@ int WindowCover_getTargetPosition(window_cover_t* instance) {
 
 void WindowCover_setMaxDownPosition(window_cover_t* instance) {
     instance->maxPosition = instance->currentPosition;
+    if(instance->callback != NULL) {
+        instance->callback(MAX_DOWN_POSITION_CHANGED);
+    }
 }
 
 void WindowCover_setMaxUpPosition(window_cover_t* instance) {
     instance->maxPosition -= instance->currentPosition;
     instance->targetPosition -= instance->currentPosition;
     instance->currentPosition = 0;
+    if(instance->callback != NULL) {
+        instance->callback(MAX_UP_POSITION_CHANGED);
+    }
 }
 
 void WindowCover_setState(window_cover_t* instance, window_state_t newState) {

@@ -9,10 +9,22 @@ typedef enum window_state {
     STOPPED
 } window_state_t;
 
+typedef enum window_cover_event_type {
+    TARGET_POSITION_CHANGED,
+    CURRENT_POSITION_CHANGED,
+    STATE_CHANGED,
+    MAX_UP_POSITION_CHANGED,
+    MAX_DOWN_POSITION_CHANGED
+} window_cover_event_type_t;
+
+typedef void (*window_cover_event_handler) (window_cover_event_type_t);
+
 typedef struct window_cover {
     int maxPosition, currentPosition, targetPosition;
     int sensePin, upPin, downPin;
     bool lastSenseState;
+    window_cover_event_handler callback;
+    
     window_state_t state;
 } window_cover_t;
 

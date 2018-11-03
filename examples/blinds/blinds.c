@@ -6,6 +6,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "homekit.h"
 #include <homekit/homekit.h>
 #include <homekit/characteristics.h>
 #include <wifi_config.h>
@@ -17,9 +18,9 @@
 #define POSITION_STATE_INCREASING 1
 #define POSITION_STATE_STOPPED 2
 
-const int motor_a_up = 16;
+const int motor_a_up = 4;
 const int motor_a_down = 5;
-const int motor_a_sense = 4;
+const int motor_a_sense = 16;
 
 const int led_gpio = 2;
 bool led_on = false;
@@ -78,70 +79,66 @@ void monitor_task(void *_args) {
     }
 }
 
+void homekit_callback(window_cover_event_type_t type) {
+    switch(type) {
+        case CURRENT_POSITION_CHANGED:
+        case MAX_UP_POSITION_CHANGED:
+        case MAX_DOWN_POSITION_CHANGED:
+            homekit_characteristic_notify(&current_position, current_position_get());
+            break;
+        case TARGET_POSITION_CHANGED:
+            homekit_characteristic_notify(&target_position, target_position_get());
+            break;
+        case STATE_CHANGED:
+            homekit_characteristic_notify(&position_state, position_state_get());
+    }
+}
+
 void blinds_init() {
     coverA.currentPosition = 0;
     coverA.maxPosition = 24;
     coverA.targetPosition = 0;
     WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
-    xTaskCreate(monitor_task, "Monitor", 200, NULL, 2, NULL);
+    xTaskCreate(monitor_task, "Monitor", 300, NULL, 2, NULL);
+
+    coverA.callback = homekit_callback;
 }
 
 homekit_value_t current_position_get() {
-    return HOMEKIT_UINT8(WindowCover_getCurrentPosition(&coverA) * 100 / WindowCover_getMaxPosition(&coverA));
+    uint8_t cp;
+    if(coverA.state == STOPPED && coverA.targetPosition >= 0) {
+        cp = coverA.targetPosition;
+    } else {
+        cp = coverA.currentPosition;
+    }
+    uint8_t mp = coverA.maxPosition, pct = cp * 100 / mp;
+    printf("Current Position: %d / %d = %d %%\n", cp, mp, pct);
+    if(pct > 100) {
+        pct = 100;
+    }
+    return HOMEKIT_UINT8(100 - pct);
 }
 
 homekit_value_t target_position_get() {
-    return HOMEKIT_UINT8(WindowCover_getTargetPosition(&coverA) * 100 / WindowCover_getMaxPosition(&coverA));
+    uint8_t cp = coverA.targetPosition;
+    if(cp < 0) {
+        return current_position_get();
+    }
+    uint8_t mp = coverA.maxPosition, pct = cp * 100 / mp;
+    printf("Target Position: %d / %d = %d %%\n", cp, mp, pct);
+    if(pct > 100) {
+        pct = 100;
+    }
+    return HOMEKIT_UINT8(100 - pct);
 }
 
 void target_position_set(homekit_value_t position) {
-    WindowCover_setTargetPosition(&coverA, position.int_value * WindowCover_getMaxPosition(&coverA) / 100);
+    WindowCover_setTargetPosition(&coverA, (100 - position.int_value) * WindowCover_getMaxPosition(&coverA) / 100);
 }
 
 homekit_value_t position_state_get() {
     return HOMEKIT_UINT8(POSITION_STATE_STOPPED);
 } 
-
-homekit_accessory_t *accessories[] = {
-    HOMEKIT_ACCESSORY(.id=1, .category=homekit_accessory_category_window_covering, .services=(homekit_service_t*[]){
-        HOMEKIT_SERVICE(ACCESSORY_INFORMATION, .characteristics=(homekit_characteristic_t*[]){
-            HOMEKIT_CHARACTERISTIC(NAME, "Blinds"),
-            HOMEKIT_CHARACTERISTIC(MANUFACTURER, "ccantill"),
-            HOMEKIT_CHARACTERISTIC(SERIAL_NUMBER, "037A2BABF19D"),
-            HOMEKIT_CHARACTERISTIC(MODEL, "Blinds"),
-            HOMEKIT_CHARACTERISTIC(FIRMWARE_REVISION, "0.1"),
-            HOMEKIT_CHARACTERISTIC(IDENTIFY, led_identify),
-            NULL
-        }),
-        HOMEKIT_SERVICE(WINDOW_COVERING, .primary=true, .characteristics=(homekit_characteristic_t*[]) {
-            HOMEKIT_CHARACTERISTIC(NAME, "Blinds A"),
-            HOMEKIT_CHARACTERISTIC(
-                CURRENT_POSITION,
-                0,
-                .getter=current_position_get
-            ),
-            HOMEKIT_CHARACTERISTIC(
-                TARGET_POSITION,
-                0,
-                .getter=target_position_get,
-                .setter=target_position_set
-            ),
-            HOMEKIT_CHARACTERISTIC(
-                POSITION_STATE,
-                0,
-                .getter=position_state_get
-            ),
-            NULL
-        }),
-        NULL
-    }),
-    NULL
-};
-
-homekit_server_config_t config = {
-    .accessories = accessories,
-    .password = "111-11-111"
-};
 
 void on_wifi_ready() {
     led_init();
