@@ -5,6 +5,7 @@
 #include <esp8266.h>
 #include <FreeRTOS.h>
 #include <task.h>
+#include <sysparam.h>
 
 #include "homekit.h"
 #include <homekit/homekit.h>
@@ -72,19 +73,16 @@ void led_on_set(homekit_value_t value) {
 
 window_cover_t coverA;
 
-void monitor_task(void *_args) {
-    while(true) {
-        WindowCover_update(&coverA);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
-}
-
 void homekit_callback(window_cover_event_type_t type) {
+    websocket_broadcast();
     switch(type) {
-        case CURRENT_POSITION_CHANGED:
         case MAX_UP_POSITION_CHANGED:
         case MAX_DOWN_POSITION_CHANGED:
+            sysparam_set_int32("cover_a_maxposition", coverA.maxPosition);
+            // continue on because a change on max position also has an effect on the current position
+        case CURRENT_POSITION_CHANGED:
             homekit_characteristic_notify(&current_position, current_position_get());
+            sysparam_set_int32("cover_a_currentposition", coverA.currentPosition);
             break;
         case TARGET_POSITION_CHANGED:
             homekit_characteristic_notify(&target_position, target_position_get());
@@ -95,11 +93,21 @@ void homekit_callback(window_cover_event_type_t type) {
 }
 
 void blinds_init() {
-    coverA.currentPosition = 0;
-    coverA.maxPosition = 24;
-    coverA.targetPosition = 0;
+    if(
+            sysparam_get_int32("cover_a_currentposition", &coverA.currentPosition) != SYSPARAM_OK ||
+            sysparam_get_int32("cover_a_maxposition", &coverA.maxPosition) != SYSPARAM_OK) {
+        printf("Initializing with default settings\n");
+        coverA.currentPosition = 0;
+        coverA.maxPosition = 24;
+        sysparam_set_int32("cover_a_maxposition", coverA.maxPosition);
+        sysparam_set_int32("cover_a_currentposition", coverA.currentPosition);
+    } else {
+        printf("Restored previous settings: C=%d, M=%d\n", coverA.currentPosition, coverA.maxPosition);
+    }
+    
+    coverA.targetPosition = coverA.currentPosition;
+
     WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
-    xTaskCreate(monitor_task, "Monitor", 300, NULL, 2, NULL);
 
     coverA.callback = homekit_callback;
 }

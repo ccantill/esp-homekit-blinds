@@ -4,6 +4,11 @@
             function xhr(url) {
                 fetch(url).then(result => console.log(result)).catch(err => console.error(err));
             }
+
+            var ws = new WebSocket("ws://" + window.location.host + "/status");
+            ws.onmessage = function(event) {
+                console.log(event.data);
+            }
         </script>
     </head>
     <body>

@@ -2,6 +2,8 @@
 #define __BLINDS_CONTROLLER
 
 #include <stdbool.h>
+#include <FreeRTOS.h>
+#include <task.h>
 
 typedef enum window_state {
     INCREASING,
@@ -24,6 +26,8 @@ typedef struct window_cover {
     int sensePin, upPin, downPin;
     bool lastSenseState;
     window_cover_event_handler callback;
+
+    TaskHandle_t monitorTask;
     
     window_state_t state;
 } window_cover_t;
@@ -37,6 +41,5 @@ int WindowCover_getCurrentPosition(window_cover_t* instance);
 int WindowCover_getMaxPosition(window_cover_t* instance);
 void WindowCover_setMaxUpPosition(window_cover_t* instance);
 void WindowCover_setMaxDownPosition(window_cover_t* instance);
-void WindowCover_update(window_cover_t* instance);
 
 #endif

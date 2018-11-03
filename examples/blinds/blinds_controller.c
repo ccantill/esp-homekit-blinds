@@ -8,6 +8,16 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+bool WindowCover_update(window_cover_t* instance);
+
+void monitor_task(void *_args) {
+    window_cover_t* instance = (window_cover_t*) _args;
+    while(true) {
+        WindowCover_update(instance);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
+
 void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int downPin) {
     instance->sensePin = sensePin;
     instance->upPin = upPin;
@@ -22,6 +32,8 @@ void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int dow
 
     instance->state = STOPPED;
     instance->lastSenseState = gpio_read(sensePin);
+
+    xTaskCreate(monitor_task, "Monitor", 300, (void *) instance, 2, &instance->monitorTask);
 }
 
 int WindowCover_getCurrentPosition(window_cover_t* instance) {
@@ -45,7 +57,7 @@ void WindowCover_setStateInternal(window_cover_t* instance, window_state_t newSt
     }
 }
 
-void WindowCover_update(window_cover_t* instance) {
+bool WindowCover_update(window_cover_t* instance) {
     if(instance->state != STOPPED) {   
         bool newSenseState = gpio_read(instance->sensePin);
         if(newSenseState != instance->lastSenseState) {
@@ -66,6 +78,9 @@ void WindowCover_update(window_cover_t* instance) {
                 WindowCover_setStateInternal(instance, STOPPED);
             }
         }
+        return true;
+    } else {
+        return false;
     }
 }
 
