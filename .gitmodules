@@ -22,3 +22,6 @@
 [submodule "components/esp-8266/qrcode"]
 	path = components/esp-8266/qrcode
 	url = https://github.com/maximkulkin/esp-qrcode.git
+[submodule "components/libesphttpd"]
+	path = components/libesphttpd
+	url = https://github.com/chmorgan/libesphttpd
