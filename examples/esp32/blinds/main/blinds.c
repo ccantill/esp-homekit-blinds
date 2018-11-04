@@ -1,15 +1,14 @@
 #include <stdio.h>
-#include <espressif/esp_wifi.h>
-#include <espressif/esp_sta.h>
-#include <esp/uart.h>
-#include <esp8266.h>
-#include <FreeRTOS.h>
-#include <task.h>
-#include <sysparam.h>
+#include <esp_wifi.h>
+#include <esp_event_loop.h>
+#include <esp_log.h>
+#include <nvs_flash.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "homekit.h"
-#include <homekit/homekit.h>
-#include <homekit/characteristics.h>
+
 #include <wifi_config.h>
 
 #include "blinds_controller.h"
@@ -19,23 +18,27 @@
 #define POSITION_STATE_INCREASING 1
 #define POSITION_STATE_STOPPED 2
 
-// const int motor_a_up = 4;
-// const int motor_a_down = 5;
-// const int motor_a_sense = 16;
+const int motor_a_up = 32;
+const int motor_a_down = 33;
+const int motor_a_sense = 36;
 
-const int motor_a_up = 13;
-const int motor_a_down = 12;
-const int motor_a_sense = 14;
+#ifdef ENABLE_MOTOR_B
+const int motor_b_up = 25;
+const int motor_b_down = 26;
+const int motor_b_sense = 39;
+#endif
 
 const int led_gpio = 2;
 bool led_on = false;
 
+nvs_handle settings_storage;
+
 void led_write(bool on) {
-    gpio_write(led_gpio, on ? 0 : 1);
+    gpio_set_level(led_gpio, on ? 1 : 0);
 }
 
 void led_init() {
-    gpio_enable(led_gpio, GPIO_OUTPUT);
+    gpio_set_direction(led_gpio, GPIO_MODE_OUTPUT);
     led_write(led_on);
 }
 
@@ -58,7 +61,7 @@ void led_identify_task(void *_args) {
 
 void led_identify(homekit_value_t _value) {
     printf("LED identify\n");
-    xTaskCreate(led_identify_task, "LED identify", 128, NULL, 2, NULL);
+    xTaskCreate(led_identify_task, "LED identify", 512, NULL, 2, NULL);
 }
 
 homekit_value_t led_on_get() {
@@ -76,17 +79,21 @@ void led_on_set(homekit_value_t value) {
 }
 
 window_cover_t coverA;
+#ifdef ENABLE_MOTOR_B
+window_cover_t coverB;
+#endif
 
 void homekit_callback(window_cover_event_type_t type) {
     websocket_broadcast();
     switch(type) {
         case MAX_UP_POSITION_CHANGED:
         case MAX_DOWN_POSITION_CHANGED:
-            sysparam_set_int32("cover_a_maxposition", coverA.maxPosition);
+            nvs_set_i32(settings_storage, "cover_a_maxposition", coverA.maxPosition);
             // continue on because a change on max position also has an effect on the current position
         case CURRENT_POSITION_CHANGED:
             homekit_characteristic_notify(&current_position, current_position_get());
-            sysparam_set_int32("cover_a_currentposition", coverA.currentPosition);
+            nvs_set_i32(settings_storage, "cover_a_currentposition", coverA.currentPosition);
+            nvs_commit(settings_storage);
             break;
         case TARGET_POSITION_CHANGED:
             homekit_characteristic_notify(&target_position, target_position_get());
@@ -98,13 +105,14 @@ void homekit_callback(window_cover_event_type_t type) {
 
 void blinds_init() {
     if(
-            sysparam_get_int32("cover_a_currentposition", &coverA.currentPosition) != SYSPARAM_OK ||
-            sysparam_get_int32("cover_a_maxposition", &coverA.maxPosition) != SYSPARAM_OK) {
+            nvs_get_i32(settings_storage, "cover_a_currentposition", &coverA.currentPosition) != ESP_OK ||
+            nvs_get_i32(settings_storage, "cover_a_maxposition", &coverA.maxPosition) != ESP_OK) {
         printf("Initializing with default settings\n");
         coverA.currentPosition = 0;
         coverA.maxPosition = 24;
-        sysparam_set_int32("cover_a_maxposition", coverA.maxPosition);
-        sysparam_set_int32("cover_a_currentposition", coverA.currentPosition);
+        nvs_set_i32(settings_storage, "cover_a_maxposition", coverA.maxPosition);
+        nvs_set_i32(settings_storage, "cover_a_currentposition", coverA.currentPosition);
+        nvs_commit(settings_storage);
     } else {
         printf("Restored previous settings: C=%d, M=%d\n", coverA.currentPosition, coverA.maxPosition);
     }
@@ -115,7 +123,7 @@ void blinds_init() {
 }
 
 homekit_value_t current_position_get() {
-    uint8_t cp;
+    int cp;
     if(coverA.state == STOPPED && coverA.targetPosition >= 0) {
         cp = coverA.targetPosition;
     } else {
@@ -130,7 +138,7 @@ homekit_value_t current_position_get() {
 }
 
 homekit_value_t target_position_get() {
-    uint8_t cp = coverA.targetPosition;
+    int cp = coverA.targetPosition;
     if(cp < 0) {
         return current_position_get();
     }
@@ -161,29 +169,67 @@ void on_wifi_ready() {
 
 #ifdef NO_WIFI_CONFIG
 #include "wifi.h"
-static void wifi_init() {
-    struct sdk_station_config wifi_config = {
-        .ssid = WIFI_SSID,
-        .password = WIFI_PASSWORD,
+esp_err_t event_handler(void *ctx, system_event_t *event)
+{
+    switch(event->event_id) {
+        case SYSTEM_EVENT_STA_START:
+            printf("STA start\n");
+            esp_wifi_connect();
+            break;
+        case SYSTEM_EVENT_STA_GOT_IP:
+            printf("WiFI ready\n");
+            on_wifi_ready();
+            break;
+        case SYSTEM_EVENT_STA_DISCONNECTED:
+            printf("STA disconnected\n");
+            esp_wifi_connect();
+            break;
+        default:
+            break;
+    }
+    return ESP_OK;
+}
+
+static void start_wifi_config() {
+    tcpip_adapter_init();
+    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
+
+    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASSWORD,
+        },
     };
 
-    sdk_wifi_set_opmode(STATION_MODE);
-    sdk_wifi_station_set_config(&wifi_config);
-    sdk_wifi_station_connect();
-}
-
-void user_init(void) {
-    uart_set_baud(0, 115200);
-    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
-    wifi_init();
-    on_wifi_ready();
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
 }
 #else
-void user_init(void) {
-    uart_set_baud(0, 115200);
-    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
-
+void start_wifi_config() {
     wifi_config_init("blinds", NULL, on_wifi_ready);
 }
 #endif
+
+void app_main(void) {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK( ret );
+    
+    ret = nvs_open("blinds_settings", NVS_READWRITE, &settings_storage);
+    if(ret != ESP_OK) {
+        printf("Error (%s) opening NVS handle\n", esp_err_to_name(ret));
+    }
+
+    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
+
+    start_wifi_config();
+}
 

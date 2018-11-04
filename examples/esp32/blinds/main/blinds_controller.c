@@ -1,18 +1,15 @@
 #include "blinds_controller.h"
 
 #include <stdio.h>
-#include <espressif/esp_wifi.h>
-#include <espressif/esp_sta.h>
-#include <esp/uart.h>
-#include <esp8266.h>
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 
 bool WindowCover_update(window_cover_t* instance);
 
 void monitor_task(void *_args) {
     window_cover_t* instance = (window_cover_t*) _args;
-    while(true) {
+    for(;;) {
         WindowCover_update(instance);
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
@@ -23,19 +20,19 @@ void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int dow
     instance->upPin = upPin;
     instance->downPin = downPin;
 
-    gpio_enable(sensePin, GPIO_INPUT);
-    gpio_enable(upPin, GPIO_OUTPUT);
-    gpio_enable(downPin, GPIO_OUTPUT);
+    gpio_set_direction(sensePin, GPIO_MODE_INPUT);
+    gpio_set_direction(upPin, GPIO_MODE_OUTPUT);
+    gpio_set_direction(downPin, GPIO_MODE_OUTPUT);
 
-    gpio_write(upPin, 0);
-    gpio_write(downPin, 0);
+    gpio_set_level(upPin, 0);
+    gpio_set_level(downPin, 0);
 
     instance->state = STOPPED;
-    instance->lastSenseState = gpio_read(sensePin);
+    instance->lastSenseState = gpio_get_level(sensePin);
 }
 
 void WindowCover_start(window_cover_t* instance) {
-    xTaskCreate(monitor_task, "Monitor", 300, (void *) instance, 2, &instance->monitorTask);
+    xTaskCreate(monitor_task, "Monitor", 8000, (void *) instance, 2, &instance->monitorTask);
 }
 
 int WindowCover_getCurrentPosition(window_cover_t* instance) {
@@ -52,8 +49,8 @@ window_state_t WindowCover_getState(window_cover_t* instance) {
 
 void WindowCover_setStateInternal(window_cover_t* instance, window_state_t newState) {
     instance->state = newState;
-    gpio_write(instance->upPin, newState == DECREASING);
-    gpio_write(instance->downPin, newState == INCREASING);
+    gpio_set_level(instance->upPin, newState == DECREASING);
+    gpio_set_level(instance->downPin, newState == INCREASING);
     if(instance->callback != NULL) {
         instance->callback(STATE_CHANGED);
     }
@@ -61,7 +58,7 @@ void WindowCover_setStateInternal(window_cover_t* instance, window_state_t newSt
 
 bool WindowCover_update(window_cover_t* instance) {
     if(instance->state != STOPPED) {   
-        bool newSenseState = gpio_read(instance->sensePin);
+        bool newSenseState = gpio_get_level(instance->sensePin);
         if(newSenseState != instance->lastSenseState) {
             instance->lastSenseState = newSenseState;
             if(instance->state == DECREASING) {

@@ -2,8 +2,8 @@
 #define __BLINDS_CONTROLLER
 
 #include <stdbool.h>
-#include <FreeRTOS.h>
-#include <task.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 typedef enum window_state {
     INCREASING,
