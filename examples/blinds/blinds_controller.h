@@ -33,6 +33,7 @@ typedef struct window_cover {
 } window_cover_t;
 
 void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int downPin);
+void WindowCover_start(window_cover_t* instance);
 void WindowCover_setState(window_cover_t* instance, window_state_t state);
 window_state_t WindowCover_getState(window_cover_t* instance);
 void WindowCover_setTargetPosition(window_cover_t* instance, int newPosition);

@@ -19,9 +19,13 @@
 #define POSITION_STATE_INCREASING 1
 #define POSITION_STATE_STOPPED 2
 
-const int motor_a_up = 4;
-const int motor_a_down = 5;
-const int motor_a_sense = 16;
+// const int motor_a_up = 4;
+// const int motor_a_down = 5;
+// const int motor_a_sense = 16;
+
+const int motor_a_up = 13;
+const int motor_a_down = 12;
+const int motor_a_sense = 14;
 
 const int led_gpio = 2;
 bool led_on = false;
@@ -106,10 +110,8 @@ void blinds_init() {
     }
     
     coverA.targetPosition = coverA.currentPosition;
-
-    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
-
     coverA.callback = homekit_callback;
+    WindowCover_start(&coverA);
 }
 
 homekit_value_t current_position_get() {
@@ -172,12 +174,14 @@ static void wifi_init() {
 
 void user_init(void) {
     uart_set_baud(0, 115200);
+    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
     wifi_init();
     on_wifi_ready();
 }
 #else
 void user_init(void) {
     uart_set_baud(0, 115200);
+    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
 
     wifi_config_init("blinds", NULL, on_wifi_ready);
 }

@@ -32,7 +32,9 @@ void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int dow
 
     instance->state = STOPPED;
     instance->lastSenseState = gpio_read(sensePin);
+}
 
+void WindowCover_start(window_cover_t* instance) {
     xTaskCreate(monitor_task, "Monitor", 300, (void *) instance, 2, &instance->monitorTask);
 }
 
