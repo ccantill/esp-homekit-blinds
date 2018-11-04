@@ -88,11 +88,11 @@ void homekit_callback(window_cover_event_type_t type) {
     switch(type) {
         case MAX_UP_POSITION_CHANGED:
         case MAX_DOWN_POSITION_CHANGED:
-            nvs_set_i32(settings_storage, "cover_a_maxposition", coverA.maxPosition);
+            nvs_set_i32(settings_storage, "max_pos_a", coverA.maxPosition);
             // continue on because a change on max position also has an effect on the current position
         case CURRENT_POSITION_CHANGED:
             homekit_characteristic_notify(&current_position, current_position_get());
-            nvs_set_i32(settings_storage, "cover_a_currentposition", coverA.currentPosition);
+            nvs_set_i32(settings_storage, "cur_pos_a", coverA.currentPosition);
             nvs_commit(settings_storage);
             break;
         case TARGET_POSITION_CHANGED:
@@ -104,15 +104,17 @@ void homekit_callback(window_cover_event_type_t type) {
 }
 
 void blinds_init() {
+    esp_err_t err;
     if(
-            nvs_get_i32(settings_storage, "cover_a_currentposition", &coverA.currentPosition) != ESP_OK ||
-            nvs_get_i32(settings_storage, "cover_a_maxposition", &coverA.maxPosition) != ESP_OK) {
+            (err = nvs_get_i32(settings_storage, "cur_pos_a", &coverA.currentPosition)) != ESP_OK ||
+            (err = nvs_get_i32(settings_storage, "max_pos_a", &coverA.maxPosition)) != ESP_OK) {
+        printf("Could not fetch previous values: %s", esp_err_to_name(err));
         printf("Initializing with default settings\n");
         coverA.currentPosition = 0;
         coverA.maxPosition = 24;
-        nvs_set_i32(settings_storage, "cover_a_maxposition", coverA.maxPosition);
-        nvs_set_i32(settings_storage, "cover_a_currentposition", coverA.currentPosition);
-        nvs_commit(settings_storage);
+        ESP_ERROR_CHECK(nvs_set_i32(settings_storage, "max_pos_a", coverA.maxPosition));
+        ESP_ERROR_CHECK(nvs_set_i32(settings_storage, "cur_pos_a", coverA.currentPosition));
+        ESP_ERROR_CHECK(nvs_commit(settings_storage));
     } else {
         printf("Restored previous settings: C=%d, M=%d\n", coverA.currentPosition, coverA.maxPosition);
     }
