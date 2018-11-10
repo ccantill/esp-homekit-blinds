@@ -15,20 +15,17 @@ void monitor_task(void *_args) {
     }
 }
 
-void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int downPin) {
-    instance->sensePin = sensePin;
-    instance->upPin = upPin;
-    instance->downPin = downPin;
+void WindowCover_init(window_cover_t* instance) {
+    printf("Motor intialisation. Sense: %d, up: %d, down: %d\n", instance->sensePin, instance->upPin, instance->downPin);
+    gpio_set_direction(instance->sensePin, GPIO_MODE_INPUT);
+    gpio_set_direction(instance->upPin, GPIO_MODE_OUTPUT);
+    gpio_set_direction(instance->downPin, GPIO_MODE_OUTPUT);
 
-    gpio_set_direction(sensePin, GPIO_MODE_INPUT);
-    gpio_set_direction(upPin, GPIO_MODE_OUTPUT);
-    gpio_set_direction(downPin, GPIO_MODE_OUTPUT);
-
-    gpio_set_level(upPin, 0);
-    gpio_set_level(downPin, 0);
+    gpio_set_level(instance->upPin, 0);
+    gpio_set_level(instance->downPin, 0);
 
     instance->state = STOPPED;
-    instance->lastSenseState = gpio_get_level(sensePin);
+    instance->lastSenseState = gpio_get_level(instance->sensePin);
 }
 
 void WindowCover_start(window_cover_t* instance) {
@@ -52,7 +49,7 @@ void WindowCover_setStateInternal(window_cover_t* instance, window_state_t newSt
     gpio_set_level(instance->upPin, newState == DECREASING);
     gpio_set_level(instance->downPin, newState == INCREASING);
     if(instance->callback != NULL) {
-        instance->callback(STATE_CHANGED);
+        instance->callback(instance, STATE_CHANGED);
     }
 }
 
@@ -67,7 +64,7 @@ bool WindowCover_update(window_cover_t* instance) {
                 instance->currentPosition++;
             }
             if(instance->callback != NULL) {
-                instance->callback(CURRENT_POSITION_CHANGED);
+                instance->callback(instance, CURRENT_POSITION_CHANGED);
             }
             printf("Current position now at %d\n", instance->currentPosition);
         }
@@ -86,7 +83,7 @@ bool WindowCover_update(window_cover_t* instance) {
 void WindowCover_setTargetPosition(window_cover_t* instance, int position) {
     instance->targetPosition = position;
     if(instance->callback != NULL) {
-        instance->callback(TARGET_POSITION_CHANGED);
+        instance->callback(instance, TARGET_POSITION_CHANGED);
     }
     if(position > instance->currentPosition) {
         WindowCover_setStateInternal(instance, INCREASING);
@@ -102,7 +99,7 @@ int WindowCover_getTargetPosition(window_cover_t* instance) {
 void WindowCover_setMaxDownPosition(window_cover_t* instance) {
     instance->maxPosition = instance->currentPosition;
     if(instance->callback != NULL) {
-        instance->callback(MAX_DOWN_POSITION_CHANGED);
+        instance->callback(instance, MAX_DOWN_POSITION_CHANGED);
     }
 }
 
@@ -111,7 +108,7 @@ void WindowCover_setMaxUpPosition(window_cover_t* instance) {
     instance->targetPosition -= instance->currentPosition;
     instance->currentPosition = 0;
     if(instance->callback != NULL) {
-        instance->callback(MAX_UP_POSITION_CHANGED);
+        instance->callback(instance, MAX_UP_POSITION_CHANGED);
     }
 }
 

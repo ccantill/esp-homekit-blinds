@@ -1,0 +1,57 @@
+<html>
+    <head>
+        <title>Blinds</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/rivets/0.9.6/rivets.bundled.min.js"></script>
+        <script>
+            var page = {};
+
+            function xhr(url) {
+                fetch(url).then(result => console.log(result)).catch(err => console.error(err));
+            }
+
+            function go(pfx, what) {
+                xhr(`/${pfx}/${what}`);
+            }
+
+            fetch("/status").then(response => response.json()).then(status => {
+                page.status = status;
+                page.covers = Object.keys(status).map(k => ({
+                    name: status[k].name,
+                    up() { go(k, 'up'); },
+                    down() { go(k, 'down'); },
+                    stop() { go(k, 'stop'); },
+                    setUpPos() { go(k, 'set_up_pos'); },
+                    setDownPos() { go(k, 'set_down_pos'); },
+                    get maxPosition() { return page.status[k].max_position; },
+                    get currentPosition() { return page.status[k].current_position; },
+                    get targetPosition() { return page.status[k].target_position; },
+                    set targetPosition(value) { go(k, `set_target_position?pos=${value}`); }
+                }));
+                rivets.bind(document.getElementById('cover_template'), page);
+            });
+
+            rivets.binders.max = function(el, value) {
+                el.setAttribute('max', value);
+            }
+
+            var ws = new WebSocket("ws://" + window.location.host + "/status_ws");
+            ws.onmessage = function(event) {
+                console.log(event.data);
+            }
+        </script>
+    </head>
+    <body>
+        <section id="cover_template">
+            <div rv-each-cover="covers">
+                <h1>{cover.name}</h1>
+                <button rv-on-mousedown="cover.up" rv-on-mouseup="cover.stop">Up</button>
+                <button rv-on-mousedown="cover.down" rv-on-mouseup="cover.stop">Down</button>
+                <hr/>
+                <button rv-on-click="cover.setUpPos">Reset Up position</button>
+                <button rv-on-click="cover.setDownPos">Reset Down position</button>
+                <hr/>
+                <input type="range" min="0" rv-max="cover.maxPosition" rv-value="cover.targetPosition"/>
+            </div>
+        </section>
+    </body>
+</html>

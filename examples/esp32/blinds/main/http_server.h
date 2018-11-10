@@ -4,6 +4,6 @@
 #include "blinds_controller.h"
 
 void websocket_broadcast();
-void http_init(window_cover_t* cover);
+void http_init(window_cover_t *covers, uint cover_count);
 
 #endif

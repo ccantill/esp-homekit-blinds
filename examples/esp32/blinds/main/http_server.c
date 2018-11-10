@@ -19,16 +19,14 @@
 #define MAX_CONNECTIONS 32u
 #define LISTEN_PORT 80u
 
-window_cover_t *cover;
-
 static char connectionMemory[sizeof(RtosConnType) * MAX_CONNECTIONS];
 static HttpdFreertosInstance httpdFreertosInstance;
 
+window_cover_t *http_covers;
+uint http_cover_count;
 
-char ws_status_message[200];
+char ws_status_message[800];
 int ws_status_message_len;
-
-// TaskHandle_t websocket_tasks[MAX_WEBSOCKET_CLIENTS];
 
 typedef bool (*simple_callback) (window_cover_t*, HttpdConnData*);
 
@@ -63,8 +61,8 @@ bool setTargetPosition(window_cover_t* cover, HttpdConnData *connData) {
     len = httpdFindArg(connData->getArgs, "pos", buf, sizeof(buf));
     if(len!=0) {
         printf("pos=%s\n", buf);
-        int newPositionInPercent = atoi(buf);
-        WindowCover_setTargetPosition(cover, newPositionInPercent * cover->maxPosition / 100);
+        int pos = atoi(buf);
+        WindowCover_setTargetPosition(cover, pos);
         return true;
     } else {
         return false;
@@ -72,7 +70,8 @@ bool setTargetPosition(window_cover_t* cover, HttpdConnData *connData) {
 }
 
 CgiStatus ICACHE_FLASH_ATTR invoke(HttpdConnData *connData) {
-    bool allOk = ((simple_callback)connData->cgiArg)(cover, connData);
+    int idx = (int) connData->cgiArg2;
+    bool allOk = ((simple_callback)connData->cgiArg)(&http_covers[idx], connData);
     if(allOk) {
         httpdStartResponse(connData, 200);
         httpdEndHeaders(connData);
@@ -85,11 +84,28 @@ CgiStatus ICACHE_FLASH_ATTR invoke(HttpdConnData *connData) {
     return HTTPD_CGI_DONE;
 }
 
+CgiStatus ICACHE_FLASH_ATTR status(HttpdConnData *connData) {
+    httpdStartResponse(connData, 200);
+    httpdHeader(connData, "content-type", "application/json");
+    httpdEndHeaders(connData);
+    httpdSend(connData, ws_status_message, ws_status_message_len);
+    return HTTPD_CGI_DONE;
+}
+
 void websocket_update_message() {
     /* Generate response in JSON format */
-    ws_status_message_len = snprintf(ws_status_message, sizeof (ws_status_message),
-            "{\"current_position\": %d, \"target_position\": %d, \"max_position\": %d, \"state\": %d}",
-            cover->currentPosition, cover->targetPosition, cover->maxPosition, cover->state);
+    uint offset=0;
+    offset += snprintf(ws_status_message + offset, sizeof(ws_status_message) - offset, "{");
+    for(int i = 0; i < http_cover_count;i++) {
+        window_cover_t* cover = &http_covers[i];
+        if(i > 0) {
+            offset += snprintf(ws_status_message + offset, sizeof(ws_status_message) - offset, ", ");
+        }
+        offset += snprintf(ws_status_message + offset, sizeof (ws_status_message) - offset,
+                "\"%s\": {\"name\": \"%s\", \"current_position\": %d, \"target_position\": %d, \"max_position\": %d, \"state\": %d}",
+                cover->prefix, cover->name, cover->currentPosition, cover->targetPosition, cover->maxPosition, cover->state);
+    }
+    ws_status_message_len = offset + snprintf(ws_status_message + offset, sizeof(ws_status_message) - offset, "}");
 }
 
 void websocketBroadcastTask() {
@@ -108,20 +124,30 @@ static void websocketConnect(Websock *ws) {
     cgiWebsocketSend(&httpdFreertosInstance.httpdInstance, ws, ws_status_message, ws_status_message_len, WEBSOCK_FLAG_NONE);
 }
 
-HttpdBuiltInUrl builtInUrls[]={
-    ROUTE_FILESYSTEM(),
-    ROUTE_CGI_ARG("/up", invoke, up),
-    ROUTE_CGI_ARG("/down", invoke, down),
-    ROUTE_CGI_ARG("/stop", invoke, stop),
-    ROUTE_CGI_ARG("/set_up_pos", invoke, resetUpPosition),
-    ROUTE_CGI_ARG("/set_down_pos", invoke, resetDownPosition),
-    ROUTE_CGI_ARG("/set_target_position", invoke, setTargetPosition),
-    ROUTE_WS("/status", websocketConnect),
-    ROUTE_END()
-};
+#define MOTOR_START(count) \
+    HttpdBuiltInUrl builtInUrls[]={ \
+        ROUTE_FILESYSTEM(),
+#define MOTOR(idx, nme, pfx, up_pin, down_pin, sense_pin) \
+        ROUTE_CGI_ARG2("/" pfx "/up", invoke, up, idx), \
+        ROUTE_CGI_ARG2("/" pfx "/down", invoke, down, idx), \
+        ROUTE_CGI_ARG2("/" pfx "/stop", invoke, stop, idx), \
+        ROUTE_CGI_ARG2("/" pfx "/set_up_pos", invoke, resetUpPosition, idx), \
+        ROUTE_CGI_ARG2("/" pfx "/set_down_pos", invoke, resetDownPosition, idx), \
+        ROUTE_CGI_ARG2("/" pfx "/set_target_position", invoke, setTargetPosition, idx),
+#define MOTOR_END() \
+        ROUTE_CGI("/status", status), \
+        ROUTE_WS("/status_ws", websocketConnect), \
+        ROUTE_END() \
+    };
+#include "config.h"
+#undef MOTOR_START
+#undef MOTOR
+#undef MOTOR_END
 
-void http_init(window_cover_t* _cover) {
-    cover = _cover;
+void http_init(window_cover_t *_covers, uint _cover_count) {
+    http_covers = _covers;
+    http_cover_count = _cover_count;
+    
     printf("Starting http server\n");
 
 	espFsInit((void*)(webpages_espfs_start));

@@ -19,12 +19,19 @@ typedef enum window_cover_event_type {
     MAX_DOWN_POSITION_CHANGED
 } window_cover_event_type_t;
 
-typedef void (*window_cover_event_handler) (window_cover_event_type_t);
+struct window_cover;
+
+typedef void (*window_cover_event_handler) (struct window_cover* cover, window_cover_event_type_t);
 
 typedef struct window_cover {
     int maxPosition, currentPosition, targetPosition;
     int sensePin, upPin, downPin;
     bool lastSenseState;
+    int index;
+    char* prefix;
+    char* name;
+    char* currentPosition_name;
+    char* maxPosition_name;
     window_cover_event_handler callback;
 
     TaskHandle_t monitorTask;
@@ -32,7 +39,7 @@ typedef struct window_cover {
     window_state_t state;
 } window_cover_t;
 
-void WindowCover_init(window_cover_t* instance, int sensePin, int upPin, int downPin);
+void WindowCover_init(window_cover_t* instance);
 void WindowCover_start(window_cover_t* instance);
 void WindowCover_setState(window_cover_t* instance, window_state_t state);
 window_state_t WindowCover_getState(window_cover_t* instance);

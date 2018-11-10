@@ -18,20 +18,14 @@
 #define POSITION_STATE_INCREASING 1
 #define POSITION_STATE_STOPPED 2
 
-const int motor_a_up = 32;
-const int motor_a_down = 33;
-const int motor_a_sense = 36;
-
-#ifdef ENABLE_MOTOR_B
-const int motor_b_up = 25;
-const int motor_b_down = 26;
-const int motor_b_sense = 39;
-#endif
-
 const int led_gpio = 2;
 bool led_on = false;
 
 nvs_handle settings_storage;
+
+homekit_value_t current_position_get(window_cover_t* cover);
+homekit_value_t target_position_get(window_cover_t* cover);
+homekit_value_t position_state_get(window_cover_t* cover);
 
 void led_write(bool on) {
     gpio_set_level(led_gpio, on ? 1 : 0);
@@ -78,60 +72,66 @@ void led_on_set(homekit_value_t value) {
     led_write(led_on);
 }
 
-window_cover_t coverA;
-#ifdef ENABLE_MOTOR_B
-window_cover_t coverB;
-#endif
+#define MOTOR_START(count) window_cover_t covers[] = {
+#define MOTOR(idx, nme, pfx, up_pin, down_pin, sense_pin)\
+    (window_cover_t){ .index=idx, .prefix=pfx, .name = nme, .upPin = up_pin, .downPin = down_pin, .sensePin = sense_pin, .maxPosition_name = "max_pos_" pfx, .currentPosition_name = "cur_pos_" pfx },
+#define MOTOR_END() };
+#include "config.h"
+#undef MOTOR_START
+#undef MOTOR
+#undef MOTOR_END
 
-void homekit_callback(window_cover_event_type_t type) {
+void homekit_callback(window_cover_t* cover, window_cover_event_type_t type) {
     websocket_broadcast();
     switch(type) {
         case MAX_UP_POSITION_CHANGED:
         case MAX_DOWN_POSITION_CHANGED:
-            nvs_set_i32(settings_storage, "max_pos_a", coverA.maxPosition);
+            nvs_set_i32(settings_storage, cover->maxPosition_name, cover->maxPosition);
             // continue on because a change on max position also has an effect on the current position
         case CURRENT_POSITION_CHANGED:
-            homekit_characteristic_notify(&current_position, current_position_get());
-            nvs_set_i32(settings_storage, "cur_pos_a", coverA.currentPosition);
+            homekit_characteristic_notify(current_position[cover->index], current_position_get(cover));
+            nvs_set_i32(settings_storage, cover->currentPosition_name, cover->currentPosition);
             nvs_commit(settings_storage);
             break;
         case TARGET_POSITION_CHANGED:
-            homekit_characteristic_notify(&target_position, target_position_get());
+            homekit_characteristic_notify(target_position[cover->index], target_position_get(cover));
             break;
         case STATE_CHANGED:
-            homekit_characteristic_notify(&position_state, position_state_get());
+            homekit_characteristic_notify(position_state[cover->index], position_state_get(cover));
     }
 }
 
 void blinds_init() {
     esp_err_t err;
-    if(
-            (err = nvs_get_i32(settings_storage, "cur_pos_a", &coverA.currentPosition)) != ESP_OK ||
-            (err = nvs_get_i32(settings_storage, "max_pos_a", &coverA.maxPosition)) != ESP_OK) {
-        printf("Could not fetch previous values: %s", esp_err_to_name(err));
-        printf("Initializing with default settings\n");
-        coverA.currentPosition = 0;
-        coverA.maxPosition = 24;
-        ESP_ERROR_CHECK(nvs_set_i32(settings_storage, "max_pos_a", coverA.maxPosition));
-        ESP_ERROR_CHECK(nvs_set_i32(settings_storage, "cur_pos_a", coverA.currentPosition));
-        ESP_ERROR_CHECK(nvs_commit(settings_storage));
-    } else {
-        printf("Restored previous settings: C=%d, M=%d\n", coverA.currentPosition, coverA.maxPosition);
+    for(int i=0; i < sizeof(covers) / sizeof(window_cover_t); i++) {
+        printf("blinds_init idx %d\n", i);
+        window_cover_t* cover = &covers[i];
+        printf("Initializing motor %s\n", cover->name);
+        if(
+                (err = nvs_get_i32(settings_storage, cover->currentPosition_name, &cover->currentPosition)) != ESP_OK ||
+                (err = nvs_get_i32(settings_storage, cover->maxPosition_name, &cover->maxPosition)) != ESP_OK) {
+            printf("Could not fetch previous values: %s", esp_err_to_name(err));
+            printf("Initializing with default settings\n");
+            ESP_ERROR_CHECK(nvs_set_i32(settings_storage, cover->currentPosition_name, cover->currentPosition = 0));
+            ESP_ERROR_CHECK(nvs_set_i32(settings_storage, cover->maxPosition_name, cover->maxPosition = 24));
+            ESP_ERROR_CHECK(nvs_commit(settings_storage));
+        } else {
+            printf("Restored previous settings: C=%d, M=%d\n", cover->currentPosition, cover->maxPosition);
+        }
+        cover->targetPosition = cover->currentPosition;
+        cover->callback = homekit_callback;
+        WindowCover_start(cover);
     }
-    
-    coverA.targetPosition = coverA.currentPosition;
-    coverA.callback = homekit_callback;
-    WindowCover_start(&coverA);
 }
 
-homekit_value_t current_position_get() {
+homekit_value_t current_position_get(window_cover_t* cover) {
     int cp;
-    if(coverA.state == STOPPED && coverA.targetPosition >= 0) {
-        cp = coverA.targetPosition;
+    if(cover->state == STOPPED && cover->targetPosition >= 0) {
+        cp = cover->targetPosition;
     } else {
-        cp = coverA.currentPosition;
+        cp = cover->currentPosition;
     }
-    uint8_t mp = coverA.maxPosition, pct = cp * 100 / mp;
+    uint8_t mp = cover->maxPosition, pct = cp * 100 / mp;
     printf("Current Position: %d / %d = %d %%\n", cp, mp, pct);
     if(pct > 100) {
         pct = 100;
@@ -139,12 +139,17 @@ homekit_value_t current_position_get() {
     return HOMEKIT_UINT8(100 - pct);
 }
 
-homekit_value_t target_position_get() {
-    int cp = coverA.targetPosition;
+homekit_value_t current_position_get_i(int index) {
+    window_cover_t* cover = &covers[index];
+    return current_position_get(cover);
+}
+
+homekit_value_t target_position_get(window_cover_t* cover) {
+    int cp = cover->targetPosition;
     if(cp < 0) {
-        return current_position_get();
+        return current_position_get(cover);
     }
-    uint8_t mp = coverA.maxPosition, pct = cp * 100 / mp;
+    uint8_t mp = cover->maxPosition, pct = cp * 100 / mp;
     printf("Target Position: %d / %d = %d %%\n", cp, mp, pct);
     if(pct > 100) {
         pct = 100;
@@ -152,19 +157,29 @@ homekit_value_t target_position_get() {
     return HOMEKIT_UINT8(100 - pct);
 }
 
-void target_position_set(homekit_value_t position) {
-    WindowCover_setTargetPosition(&coverA, (100 - position.int_value) * WindowCover_getMaxPosition(&coverA) / 100);
+homekit_value_t target_position_get_i(int index) {
+    window_cover_t* cover = &covers[index];
+    return target_position_get(cover);
 }
 
-homekit_value_t position_state_get() {
+void target_position_set_i(int index, homekit_value_t position) {
+    window_cover_t* cover = &covers[index];
+    WindowCover_setTargetPosition(cover, (100 - position.int_value) * WindowCover_getMaxPosition(cover) / 100);
+}
+
+homekit_value_t position_state_get(window_cover_t* cover) {
     return HOMEKIT_UINT8(POSITION_STATE_STOPPED);
+}
+
+homekit_value_t position_state_get_i(int index) {
+    return position_state_get(&covers[index]);
 } 
 
 void on_wifi_ready() {
     led_init();
     blinds_init();
-    http_init(&coverA);
     homekit_server_init(&config);
+    http_init(covers, sizeof(covers) / sizeof(window_cover_t));
 }
 
 #define NO_WIFI_CONFIG
@@ -218,6 +233,8 @@ void start_wifi_config() {
 #endif
 
 void app_main(void) {
+    homekit_init();
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -230,7 +247,9 @@ void app_main(void) {
         printf("Error (%s) opening NVS handle\n", esp_err_to_name(ret));
     }
 
-    WindowCover_init(&coverA, motor_a_sense, motor_a_up, motor_a_down);
+    for(int i = 0; i < sizeof(covers) / sizeof(window_cover_t); i++) {
+        WindowCover_init(&covers[i]);
+    }
 
     start_wifi_config();
 }
