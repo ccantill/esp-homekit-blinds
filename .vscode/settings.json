@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "homekit.h": "c",
+        "blinds_controller.h": "c",
+        "stdio.h": "c",
+        "type_traits": "c"
+    }
+}

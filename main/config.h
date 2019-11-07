@@ -1,0 +1,5 @@
+MOTOR_START(2)
+// MOTOR(index, name, prefix, up_pin, down_pin, sense_pin)
+MOTOR(0, "Blinds A", "a", 32, 33, 36)
+MOTOR(1, "Blinds B", "b", 25, 26, 39)
+MOTOR_END()

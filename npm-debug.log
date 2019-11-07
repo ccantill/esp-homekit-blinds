@@ -1,0 +1,65 @@
+0 info it worked if it ends with ok
+1 verbose cli [ '/usr/bin/nodejs',
+1 verbose cli   '/usr/bin/npm',
+1 verbose cli   'install',
+1 verbose cli   '-g',
+1 verbose cli   'http-serve' ]
+2 info using npm@1.3.10
+3 info using node@v0.10.25
+4 verbose cache add [ 'http-serve', null ]
+5 verbose cache add name=undefined spec="http-serve" args=["http-serve",null]
+6 verbose parsed url { protocol: null,
+6 verbose parsed url   slashes: null,
+6 verbose parsed url   auth: null,
+6 verbose parsed url   host: null,
+6 verbose parsed url   port: null,
+6 verbose parsed url   hostname: null,
+6 verbose parsed url   hash: null,
+6 verbose parsed url   search: null,
+6 verbose parsed url   query: null,
+6 verbose parsed url   pathname: 'http-serve',
+6 verbose parsed url   path: 'http-serve',
+6 verbose parsed url   href: 'http-serve' }
+7 silly lockFile 6ff21a54-http-serve http-serve
+8 verbose lock http-serve /home/christoph/.npm/6ff21a54-http-serve.lock
+9 silly lockFile 6ff21a54-http-serve http-serve
+10 silly lockFile 6ff21a54-http-serve http-serve
+11 verbose addNamed [ 'http-serve', '' ]
+12 verbose addNamed [ null, '*' ]
+13 silly lockFile 94472ce7-http-serve http-serve@
+14 verbose lock http-serve@ /home/christoph/.npm/94472ce7-http-serve.lock
+15 silly addNameRange { name: 'http-serve', range: '*', hasData: false }
+16 verbose url raw http-serve
+17 verbose url resolving [ 'https://registry.npmjs.org/', './http-serve' ]
+18 verbose url resolved https://registry.npmjs.org/http-serve
+19 info trying registry request attempt 1 at 16:44:29
+20 http GET https://registry.npmjs.org/http-serve
+21 info retry will retry, error on last attempt: Error: CERT_UNTRUSTED
+22 info trying registry request attempt 2 at 16:44:39
+23 http GET https://registry.npmjs.org/http-serve
+24 info retry will retry, error on last attempt: Error: CERT_UNTRUSTED
+25 info trying registry request attempt 3 at 16:45:39
+26 http GET https://registry.npmjs.org/http-serve
+27 silly lockFile 94472ce7-http-serve http-serve@
+28 silly lockFile 94472ce7-http-serve http-serve@
+29 error Error: CERT_UNTRUSTED
+29 error     at SecurePair.<anonymous> (tls.js:1370:32)
+29 error     at SecurePair.EventEmitter.emit (events.js:92:17)
+29 error     at SecurePair.maybeInitFinished (tls.js:982:10)
+29 error     at CleartextStream.read [as _read] (tls.js:469:13)
+29 error     at CleartextStream.Readable.read (_stream_readable.js:320:10)
+29 error     at EncryptedStream.write [as _write] (tls.js:366:25)
+29 error     at doWrite (_stream_writable.js:223:10)
+29 error     at writeOrBuffer (_stream_writable.js:213:5)
+29 error     at EncryptedStream.Writable.write (_stream_writable.js:180:11)
+29 error     at write (_stream_readable.js:583:24)
+30 error If you need help, you may report this log at:
+30 error     <http://github.com/isaacs/npm/issues>
+30 error or email it to:
+30 error     <npm-@googlegroups.com>
+31 error System Linux 4.4.0-17134-Microsoft
+32 error command "/usr/bin/nodejs" "/usr/bin/npm" "install" "-g" "http-serve"
+33 error cwd /mnt/c/Users/Christoph/esp-homekit-demo
+34 error node -v v0.10.25
+35 error npm -v 1.3.10
+36 verbose exit [ 1, true ]
