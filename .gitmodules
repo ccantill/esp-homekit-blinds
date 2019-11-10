@@ -1,6 +1,3 @@
-[submodule "components/cJSON"]
-	path = components/esp-8266/cJSON
-	url = https://github.com/maximkulkin/esp-cjson
 [submodule "components/wolfssl"]
 	path = components/common/wolfssl
 	url = https://github.com/maximkulkin/esp-wolfssl
@@ -10,12 +7,6 @@
 [submodule "components/http-parser"]
 	path = components/esp-32/http-parser
 	url = https://github.com/maximkulkin/esp-http-parser.git
-[submodule "components/wifi_config"]
-	path = components/esp-8266/wifi_config
-	url = https://github.com/maximkulkin/esp-wifi-config
-[submodule "components/WS2812FX"]
-	path = components/esp-8266/WS2812FX
-	url = https://github.com/pcsaito/WS2812FX-rtos
 [submodule "components/led-status"]
 	path = components/esp-8266/led-status
 	url = https://github.com/maximkulkin/esp-led-status.git
@@ -25,3 +16,9 @@
 [submodule "components/libesphttpd"]
 	path = components/libesphttpd
 	url = https://github.com/chmorgan/libesphttpd
+[submodule "components/common/cJSON"]
+	path = components/common/cJSON
+	url = https://github.com/maximkulkin/esp-cjson.git
+[submodule "components/common/wifi_config"]
+	path = components/common/wifi_config
+	url = https://github.com/maximkulkin/esp-wifi-config.git

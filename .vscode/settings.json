@@ -3,6 +3,9 @@
         "homekit.h": "c",
         "blinds_controller.h": "c",
         "stdio.h": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "esp.h": "c",
+        "httpd-platform.h": "c",
+        "cjson.h": "c"
     }
 }
