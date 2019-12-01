@@ -71,7 +71,7 @@ setInterval(() => {
     if(Object.values(coverings).reduce((a,b) => a || b.update(), false)) {
         sendWsUpdate();
     }
-}, 1000);
+}, 200);
 
 app.get('/status', (req, res) => {
     res.send(coverings);
@@ -95,7 +95,7 @@ app.get('/:pfx/down', (req, res) => {
     coverings[req.params.pfx].setState(0);
 });
 app.get('/:pfx/stop', (req, res) => {
-    coverings[req.params.pfx].setState(1);
+    coverings[req.params.pfx].setState(2);
 });
 app.ws('/status_ws', (ws, req) => {
     wsConnections.push(ws);
